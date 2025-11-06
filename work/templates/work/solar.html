@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Solar Energy Meter</title>
+  <style>
+    :root { --yellow:#f1c40f; --bg:#fefae0; --text:#2c3e50; --muted:#777; }
+    body { font-family: "Segoe UI", Arial, sans-serif; background: var(--bg); margin:0; padding:0; display:flex; justify-content:center; align-items:center; min-height:100vh; }
+    .meter { background:#fff; border-radius:12px; box-shadow:0 0 10px rgba(0,0,0,0.15); padding:24px; width:420px; text-align:center; }
+    .pill { background:var(--yellow); color:#000; display:inline-block; padding:6px 12px; border-radius:999px; font-weight:700; }
+    .digital { font-size:36px; font-weight:700; color:var(--text); margin-top:10px; }
+    .label { margin-top:10px; font-weight:700; color:#555; }
+    .value { font-size:20px; color:#000; margin-top:4px; }
+    .muted { color:var(--muted); font-size:13px; }
+    .controls { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin-top:16px; }
+    .controls button { padding:8px 14px; border-radius:8px; border:none; background:var(--yellow); color:#000; font-weight:700; cursor:pointer; }
+    .controls select { padding:6px; border-radius:6px; border:1px solid #ccc; }
+    .input { margin-top:12px; }
+    .input input { width:120px; padding:6px; border-radius:6px; border:1px solid #ccc; text-align:center; }
+  </style>
+</head>
+<body>
+  <div class="meter">
+    <div class="pill">Solar Energy Meter — kWh</div>
+    <div class="muted">Simulated solar generation</div>
+
+    <div class="digital" id="displayPower">0 W</div>
+    <div class="muted">Current Power (Instant)</div>
+
+    <div class="label">Total Energy</div>
+    <div class="value" id="displayKwh">0.000 kWh</div>
+
+    <div class="input">
+      <label for="setTotal" class="muted">Set Total (kWh): </label>
+      <input type="number" id="setTotal" step="0.001" placeholder="e.g. 10.500">
+      <button id="setBtn">Set</button>
+    </div>
+
+    <div class="label">Sim Time</div>
+    <div class="value" id="simTime">00:00:00</div>
+
+    <div class="controls">
+      <span id="apiStatus" class="muted">API: connected</span>
+      <button id="startBtn">Start</button>
+      <button id="pauseBtn" disabled>Pause</button>
+      <button id="resetBtn">Reset</button>
+      <select id="speedSelect">
+        <option value="1">1×</option>
+        <option value="10">10×</option>
+        <option value="60">60×</option>
+        <option value="3600">3600×</option>
+      </select>
+    </div>
+  </div>
+
+<script>
+const API_URL = "/solar/";
+let running = false;
+let totalEnergy = 0; // kWh
+let time = 0; // seconds
+let interval; 
+let tickSpeed = 1000; // ms per tick
+
+const displayPower = document.getElementById('displayPower');
+const displayKwh = document.getElementById('displayKwh');
+const simTime = document.getElementById('simTime');
+const startBtn = document.getElementById('startBtn');
+const pauseBtn = document.getElementById('pauseBtn');
+const resetBtn = document.getElementById('resetBtn');
+const speedSelect = document.getElementById('speedSelect');
+const setTotal = document.getElementById('setTotal');
+const setBtn = document.getElementById('setBtn');
+const apiStatus = document.getElementById('apiStatus');
+
+const SOLAR_LS_KEY = "solar_total_energy_kwh";
+
+function formatTime(sec) {
+  const h = String(Math.floor(sec / 3600)).padStart(2, '0');
+  const m = String(Math.floor((sec % 3600) / 60)).padStart(2, '0');
+  const s = String(sec % 60).padStart(2, '0');
+  return `${h}:${m}:${s}`;
+}
+
+function randomPower() {
+  return Math.floor(100 + Math.random() * 500);
+}
+
+// Load from database on page load
+async function loadFromDatabase() {
+  try {
+    const res = await fetch(API_URL, { cache: 'no-store' });
+    if (res.ok) {
+      const data = await res.json();
+      if (typeof data.total_energy_kwh === 'number') {
+        totalEnergy = data.total_energy_kwh;
+        displayKwh.textContent = totalEnergy.toFixed(3) + " kWh";
+        localStorage.setItem(SOLAR_LS_KEY, String(totalEnergy.toFixed(3)));
+        console.log("✅ Solar: Loaded from database:", totalEnergy, "kWh");
+      }
+      if (typeof data.current_power_w === 'number') {
+        displayPower.textContent = data.current_power_w + " W";
+      }
+      apiStatus.textContent = 'API: connected';
+    }
+  } catch (e) {
+    console.error("Error loading from database:", e);
+    apiStatus.textContent = 'API: error';
+  }
+}
+
+// Save to database - ALWAYS save when called
+async function saveToDatabase(currentPower) {
+  try {
+    const payload = {
+      total_energy_kwh: Number(totalEnergy.toFixed(3)),
+      current_power_w: currentPower != null ? parseInt(currentPower) : parseInt(displayPower.textContent.replace(/\D+/g, '')) || 0
+    };
+    
+    console.log("📤 Solar: POSTing to API:", payload);
+    
+    const resp = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    
+    if (resp.ok) {
+      const data = await resp.json();
+      console.log("✅ Solar: Saved to database:", data.total_energy_kwh, "kWh,", data.current_power_w, "W");
+      localStorage.setItem(SOLAR_LS_KEY, String(totalEnergy.toFixed(3)));
+      apiStatus.textContent = 'API: synced';
+    } else {
+      const t = await resp.text();
+      console.error("❌ Solar: Save failed:", resp.status, t);
+      apiStatus.textContent = 'API: error';
+    }
+  } catch (e) {
+    console.error("❌ Solar: Error saving:", e);
+    apiStatus.textContent = 'API: error';
+  }
+}
+
+// Tick function - updates energy and saves to database
+function tick() {
+  if (!running) return;
+  const power = randomPower();
+  displayPower.textContent = power + " W";
+  totalEnergy += (power / 1000) * (tickSpeed / 3600000);
+  displayKwh.textContent = totalEnergy.toFixed(3) + " kWh";
+  time++;
+  simTime.textContent = formatTime(time);
+  localStorage.setItem(SOLAR_LS_KEY, String(totalEnergy.toFixed(3)));
+  // Save to database on every tick
+  saveToDatabase(power);
+}
+
+// Start button
+startBtn.addEventListener('click', () => {
+  if (!running) {
+    running = true;
+    pauseBtn.disabled = false;
+    startBtn.disabled = true;
+    interval = setInterval(tick, tickSpeed);
+  }
+});
+
+// Pause button
+pauseBtn.addEventListener('click', () => {
+  if (running) {
+    running = false;
+    clearInterval(interval);
+    pauseBtn.disabled = true;
+    startBtn.disabled = false;
+  }
+});
+
+// Reset button
+resetBtn.addEventListener('click', () => {
+  running = false;
+  clearInterval(interval);
+  totalEnergy = 0;
+  time = 0;
+  displayPower.textContent = '0 W';
+  displayKwh.textContent = '0.000 kWh';
+  simTime.textContent = '00:00:00';
+  startBtn.disabled = false;
+  pauseBtn.disabled = true;
+  localStorage.setItem(SOLAR_LS_KEY, '0');
+  saveToDatabase(0);
+});
+
+// Speed select
+speedSelect.addEventListener('change', () => {
+  tickSpeed = 1000 / parseInt(speedSelect.value);
+  if (running) {
+    clearInterval(interval);
+    interval = setInterval(tick, tickSpeed);
+  }
+});
+
+// Manual set button
+setBtn.addEventListener('click', () => {
+  const val = parseFloat(setTotal.value);
+  if (!isNaN(val) && val >= 0) {
+    totalEnergy = val;
+    displayKwh.textContent = totalEnergy.toFixed(3) + " kWh";
+    localStorage.setItem(SOLAR_LS_KEY, String(totalEnergy.toFixed(3)));
+    saveToDatabase(undefined); // Save immediately when manually set
+  }
+});
+
+// Load from database on page load
+loadFromDatabase();
+</script>
+</body>
+</html>

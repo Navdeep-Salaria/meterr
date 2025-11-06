@@ -1,0 +1,536 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Digital Electricity Meter (Mock kWh)</title>
+
+  <style>
+    :root {
+      --green: #2ecc71;
+      --red: #e74c3c;
+      --blue: #3498db;
+      --bg: #f5f5f5;
+      --text-dark: #2c3e50;
+      --muted: #777;
+    }
+
+    body {
+      font-family: "Segoe UI", Arial, sans-serif;
+      background: var(--bg);
+      margin: 0;
+      padding: 0;
+    }
+
+    .wrap {
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 20px;
+      padding: 20px;
+    }
+
+    .side-buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      flex: 0 0 180px;
+    }
+
+    .toggle-btn {
+      padding: 10px 16px;
+      font-size: 15px;
+      font-weight: bold;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      color: white;
+      transition: 0.3s;
+      width: 100%;
+      text-align: center;
+    }
+
+    .toggle-btn.green {
+      background-color: var(--green);
+    }
+
+    .toggle-btn.red {
+      background-color: var(--red);
+    }
+
+    .toggle-btn:hover {
+      opacity: 0.85;
+    }
+
+    .meter {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.15);
+      padding: 20px;
+      width: 480px;
+      max-width: 100%;
+      flex: 1 1 400px;
+    }
+
+    .pill {
+      background: var(--blue);
+      color: white;
+      display: inline-block;
+      padding: 5px 10px;
+      border-radius: 999px;
+      font-size: 13px;
+    }
+
+    .hint {
+      color: #555;
+      font-size: 12px;
+      margin-top: 4px;
+    }
+
+    .small.muted {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .display {
+      margin-top: 15px;
+    }
+
+    .digital-digits {
+      font-size: 32px;
+      font-weight: bold;
+      color: var(--text-dark);
+      word-wrap: break-word;
+    }
+
+    .readouts {
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      margin-top: 10px;
+      gap: 10px;
+    }
+
+    .readout {
+      flex: 1 1 45%;
+    }
+
+    .readout .label {
+      font-weight: bold;
+      color: #555;
+    }
+
+    .readout .value.big {
+      font-size: 20px;
+      color: #000;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-top: 15px;
+    }
+
+    .controls button,
+    .controls select {
+      font-size: 14px;
+    }
+
+    .side {
+      background: white;
+      padding: 15px;
+      border-radius: 12px;
+      box-shadow: 0 0 8px rgba(0,0,0,0.1);
+      width: 240px;
+      max-width: 100%;
+      flex: 1 1 240px;
+    }
+
+    .side input {
+      width: 100%;
+      padding: 6px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      margin-top: 4px;
+      font-size: 14px;
+    }
+
+    .side button {
+      flex: 1;
+      padding: 8px;
+      border-radius: 8px;
+      border: none;
+      background: var(--blue);
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .side button:hover {
+      opacity: 0.9;
+    }
+
+    .list-item {
+      border-bottom: 1px solid #eee;
+      padding: 4px 0;
+      font-size: 14px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    /* New style for set total */
+    .set-total {
+      margin-top: 12px;
+      border-top: 1px solid #eee;
+      padding-top: 10px;
+    }
+
+    .set-total label {
+      font-weight: bold;
+      font-size: 14px;
+      color: #444;
+    }
+
+    .set-total input {
+      width: 100%;
+      padding: 6px;
+      margin-top: 5px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      text-align: center;
+    }
+
+    .set-total button {
+      margin-top: 8px;
+      width: 100%;
+      background: var(--green);
+    }
+
+    @media (max-width: 900px) {
+      .wrap {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .side-buttons {
+        flex-direction: row;
+        justify-content: center;
+        gap: 15px;
+      }
+      .toggle-btn {
+        min-width: 130px;
+        font-size: 14px;
+      }
+      .meter, .side {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="side-buttons">
+      <button id="pspclBtn" class="toggle-btn green">PSPCL Energy Meter</button>
+      <button id="buyBtn" class="toggle-btn red">Buy</button>
+    </div>
+
+    <div class="meter">
+      <div class="meter-header">
+        <div>
+          <div class="pill">Mock Digital Meter — kWh Simulator</div>
+          <div class="hint">Add appliances or load demo data below</div>
+        </div>
+        <div class="small muted">Tick every <span id="tickMsLabel">1s</span></div>
+      </div>
+
+      <div class="display">
+        <div>
+          <div class="digital-digits" id="displayPower">0 W</div>
+          <div class="small muted">Current Power (instant)</div>
+        </div>
+
+        <div class="readouts">
+          <div class="readout">
+            <div class="label">Total energy</div>
+            <div class="value big" id="displayKwh">0.000 kWh</div>
+            <div class="small muted">Cumulative</div>
+          </div>
+
+          <div class="readout">
+            <div class="label">Sim Time</div>
+            <div class="value" id="simTime">00:00:00</div>
+            <div class="small muted">hh:mm:ss</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="controls">
+        <button id="startBtn">Start</button>
+        <button id="pauseBtn" disabled>Pause</button>
+        <button id="resetBtn">Reset</button>
+        <label for="speedSelect" class="small muted" style="margin-left:8px">Speed</label>
+        <select id="speedSelect">
+          <option value="1">1×</option>
+          <option value="10">10×</option>
+          <option value="60">60×</option>
+          <option value="3600">3600×</option>
+        </select>
+        <div style="margin-left:auto" class="muted">
+          Total appliances: <span id="applianceCount">0</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="side">
+      <div class="pill">Appliances (mock)</div>
+      <div style="margin-top:12px">
+        <label for="newName">Name</label>
+        <input id="newName" type="text" placeholder="e.g. Tube Light" />
+
+        <label for="newWatt" style="margin-top:8px">Wattage (W)</label>
+        <input id="newWatt" type="number" placeholder="e.g. 15" />
+
+        <label for="newCount" style="margin-top:8px">Count</label>
+        <input id="newCount" type="number" value="1" min="1" />
+
+        <div style="margin-top:8px; display:flex; gap:8px;">
+          <button id="addApplianceBtn">Add</button>
+          <button id="loadScenarioBtn">Load Demo</button>
+        </div>
+      </div>
+
+      <div class="list" id="applianceList" style="margin-top:12px"></div>
+
+      <!-- New section for manual total energy -->
+      <div class="set-total">
+        <label for="setTotal">Set Total Energy (kWh)</label>
+        <input id="setTotal" type="number" step="0.001" placeholder="e.g. 12.500" />
+        <button id="setBtn">Set</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+const API_URL = "/meter/";
+const LS_KEY = "meter_total_energy_kwh";
+
+let totalEnergy = 0;   // kWh
+let totalPower = 0;    // W (sum of appliances)
+let appliances = [];   // {name, watt, count}
+let isRunning = false;
+let simSpeed = 1;
+let startTime;
+let timer;
+
+// Load data from Django database - NEVER reset to zero
+async function loadMeter() {
+  // First, try localStorage to preserve value during API call
+  const lsVal = localStorage.getItem(LS_KEY);
+  if (lsVal !== null && !isNaN(parseFloat(lsVal))) {
+    const lsEnergy = parseFloat(lsVal);
+    if (lsEnergy > 0) {
+      totalEnergy = lsEnergy;
+      updateDisplay();
+      console.log("Loaded from localStorage:", totalEnergy, "kWh");
+    }
+  }
+  
+  // Then load from database and use the larger value
+  try {
+    const res = await fetch(API_URL, { cache: "no-store" });
+    if (res.ok) {
+      const data = await res.json();
+      const dbEnergy = parseFloat(data.total_energy_kwh) || 0;
+      const dbPower = parseFloat(data.current_power_w) || 0;
+      
+      // Always use the larger value - never go backwards
+      if (!isNaN(dbEnergy) && dbEnergy >= 0) {
+        totalEnergy = Math.max(totalEnergy || 0, dbEnergy);
+        if (dbPower > 0) {
+          totalPower = dbPower;
+        }
+        updateDisplay();
+        localStorage.setItem(LS_KEY, String(totalEnergy.toFixed(3)));
+        console.log("✅ Loaded from database:", dbEnergy, "kWh, using:", totalEnergy, "kWh; power", dbPower, "W");
+      } else {
+        console.warn("Database returned invalid value, keeping current:", totalEnergy);
+      }
+    } else {
+      console.error("API load failed:", res.status);
+    }
+  } catch (err) {
+    console.error("Error loading from database:", err);
+    // Keep localStorage value if API fails
+    if (lsVal !== null && !isNaN(parseFloat(lsVal))) {
+      totalEnergy = parseFloat(lsVal);
+      updateDisplay();
+      console.log("Using localStorage due to API error:", totalEnergy, "kWh");
+    }
+  }
+  
+  // Final safety: never allow zero unless explicitly set
+  if (totalEnergy <= 0 && lsVal !== null) {
+    const lsEnergy = parseFloat(lsVal);
+    if (lsEnergy > 0) {
+      totalEnergy = lsEnergy;
+      updateDisplay();
+        console.log("Restored from localStorage:", totalEnergy, "kWh");
+    }
+  }
+}
+
+// Save data to Django database - METER → DATABASE → API
+async function saveMeter() {
+  try {
+    recalcTotalPower(); // Ensure power is up to date
+    const effectivePower = totalPower > 0 ? totalPower : 60;
+    const payload = {
+      total_energy_kwh: parseFloat(totalEnergy.toFixed(3)),
+      current_power_w: parseFloat(effectivePower.toFixed(0))
+    };
+    
+    console.log("Meter -> Database: POSTing", payload.total_energy_kwh, "kWh");
+    
+    const resp = await fetch(API_URL, {
+      method: "POST",
+      headers: { 
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
+    
+    if (resp.ok) {
+      const data = await resp.json();
+      console.log("Database updated:", data.total_energy_kwh, "kWh, API returning:", data);
+      localStorage.setItem(LS_KEY, String(totalEnergy.toFixed(3)));
+      // Meter -> Database -> API: All connected
+    } else {
+      const t = await resp.text();
+      console.error("Save failed:", resp.status, t);
+    }
+  } catch (err) {
+    console.error("Error saving:", err);
+  }
+}
+
+// Recalculate power and update UI
+function recalcTotalPower() {
+  totalPower = appliances.reduce((sum, a) => sum + (Number(a.watt) || 0) * (Number(a.count) || 0), 0);
+  document.getElementById("applianceCount").textContent = appliances.length;
+}
+
+function renderAppliances() {
+  const list = document.getElementById("applianceList");
+  list.innerHTML = "";
+  appliances.forEach((a, idx) => {
+    const div = document.createElement("div");
+    div.className = "list-item";
+    div.textContent = `${a.name} (${a.watt}W × ${a.count})`;
+    list.appendChild(div);
+  });
+}
+
+function updateDisplay() {
+  recalcTotalPower();
+  document.getElementById("displayPower").textContent = `${totalPower.toFixed(0)} W`;
+  document.getElementById("displayKwh").textContent = `${totalEnergy.toFixed(3)} kWh`;
+}
+
+// Tick simulation - METER updates → saves to DATABASE → API returns updated value
+function tick() {
+  if (!isRunning) return;
+  const now = Date.now();
+  const elapsedSec = ((now - startTime) / 1000) * simSpeed;
+  const effectivePower = totalPower > 0 ? totalPower : 60; // idle baseline W
+  const added = (effectivePower * elapsedSec) / 3600000;
+  totalEnergy += added;  // METER: Total energy changes
+  startTime = now;
+  // Update display
+  document.getElementById("displayPower").textContent = `${effectivePower.toFixed(0)} W`;
+  document.getElementById("displayKwh").textContent = `${totalEnergy.toFixed(3)} kWh`;
+  // METER → DATABASE: Save immediately on every change
+  saveMeter();
+}
+
+// Start simulation
+function startSim() {
+  if (isRunning) return;
+  isRunning = true;
+  startTime = Date.now();
+  timer = setInterval(tick, 1000);
+  document.getElementById("startBtn").disabled = true;
+  document.getElementById("pauseBtn").disabled = false;
+}
+
+// Pause simulation
+function pauseSim() {
+  isRunning = false;
+  clearInterval(timer);
+  document.getElementById("startBtn").disabled = false;
+  document.getElementById("pauseBtn").disabled = true;
+}
+
+// Reset - METER → DATABASE → API
+function resetSim() {
+  totalEnergy = 0;  // METER: Reset value
+  updateDisplay();
+  saveMeter();  // DATABASE: Save reset value
+}
+
+// Manual set total
+document.getElementById("setBtn").addEventListener("click", () => {
+  const val = parseFloat(document.getElementById("setTotal").value);
+  if (!isNaN(val) && val >= 0) {
+    totalEnergy = val;
+    updateDisplay();
+    saveMeter(); // Save to database immediately
+  }
+});
+
+// Load Demo appliances
+document.getElementById("loadScenarioBtn").addEventListener("click", () => {
+  appliances = [
+    { name: "Fan", watt: 80, count: 2 },
+    { name: "Light", watt: 40, count: 4 },
+    { name: "TV", watt: 100, count: 1 },
+  ];
+  renderAppliances();
+  updateDisplay();
+});
+
+// Button Events
+document.getElementById("startBtn").addEventListener("click", startSim);
+document.getElementById("pauseBtn").addEventListener("click", pauseSim);
+document.getElementById("resetBtn").addEventListener("click", resetSim);
+document.getElementById("speedSelect").addEventListener("change", (e) => {
+  simSpeed = parseFloat(e.target.value);
+});
+
+// Add Appliance
+document.getElementById("addApplianceBtn").addEventListener("click", () => {
+  const name = (document.getElementById("newName").value || "").trim();
+  const watt = parseFloat(document.getElementById("newWatt").value);
+  const count = parseInt(document.getElementById("newCount").value);
+  if (!name || isNaN(watt) || isNaN(count) || watt <= 0 || count <= 0) {
+    alert("Enter valid name, watt (>0), and count (>0)");
+    return;
+  }
+  appliances.push({ name, watt, count });
+  document.getElementById("newName").value = "";
+  document.getElementById("newWatt").value = "";
+  document.getElementById("newCount").value = 1;
+  renderAppliances();
+  updateDisplay();
+});
+
+// Load on start
+loadMeter();
+</script>
+
+
+
+</body>
+</html>
+
